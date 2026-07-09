@@ -10,8 +10,8 @@ with this module you can do:
 
 ```powershell
 $session = New-FsiSession
-Invoke-FsiSession -Path Sample.fsx
-Invoke-FsiSession -Expression Sample.twenty
+Invoke-FsiSession $session -Path Sample.fsx
+Invoke-FsiSession $session -Expression Sample.twenty
 ```
 
 and you will get the result `20`.
