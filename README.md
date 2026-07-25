@@ -19,6 +19,18 @@ and you will get the result `20`.
 When calling `New-FsiSession` you can provide `IncludePath` to a folder containing your scripts, and then for `Invoke-FsiSession` you can pass `LiteralPath` to a path to a script in an included path.  If you use `Path` then it will resolve the path.
 
 
+## Using Values
+
+You can use the `-Values` parameter of `Invoke-FsiSession` to pass in values:
+
+```powershell
+$session = New-FsiSession
+Invoke-FsiSession $session `
+    -Expression 'numToSquare * numToSquare - numToSubtract' `
+    -Values @{ numToSquare = 5; numToSubtract = 2 }
+```
+
+
 ## Benefits
 
 This module lets you create an F# Interactive session, load scripts and evaluate expressions, directly from PowerShell. Running `dotnet fsi <script>` faces a significant startup cost each time it is run, so re-using the same session will be faster. 

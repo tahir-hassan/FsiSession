@@ -1,7 +1,9 @@
 using namespace System.Text
 using namespace System.IO
+using namespace System.Diagnostics.CodeAnalysis
 
 Function New-FsiSession {
+    [SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
 	param(
 		[string]$WorkingDirectory = ".",
 		[string[]]$IncludePath = @()
@@ -12,11 +14,13 @@ Function New-FsiSession {
 	$inReader = [StringReader]::new("")
 	$outWriter = [StringWriter]::new($sbOut)
 	$errWriter = [StringWriter]::new($sbErr)
-	$allArgs = "fsi","--noninteractive"
+	$allArgs = "fsi","--noninteractive","--gui-"
+
 	if ($IncludePath.Count) {
 		$allArgs += @(
 		"--lib:$(($IncludePath | foreach { Resolve-Path $_ }) -join ';')");
 	}
+
 	$fsiConfig = [FSharp.Compiler.Interactive.Shell+FsiEvaluationSession]::GetDefaultConfiguration()
 
 	try {
@@ -24,7 +28,7 @@ Function New-FsiSession {
 		[System.Environment]::CurrentDirectory = (Resolve-Path $WorkingDirectory).Path;
 
 		$fsiSession = [FSharp.Compiler.Interactive.Shell+FsiEvaluationSession]::Create($fsiConfig, $allArgs, $inReader, $outWriter, $errWriter, $null, $null);
-		$fsiSession | Add-Member -NotePropertyMembers @{ 
+		$fsiSession | Add-Member -NotePropertyMembers @{
 			InReader = $inReader
 			OutStringBuilder = $sbOut
 			ErrorStringBuilder = $sbErr
@@ -42,13 +46,16 @@ Function Invoke-FsiSession {
     [CmdletBinding(DefaultParameterSetName = 'Expression')]
     param(
         [Parameter(Mandatory, ParameterSetName = 'Expression', Position = 0)]
+        [Parameter(Mandatory, ParameterSetName = 'Interaction', Position = 0)]
         [Parameter(Mandatory, ParameterSetName = 'Path', Position = 0)]
         [Parameter(Mandatory, ParameterSetName = 'LiteralPath', Position = 0)]
-        [Parameter(Mandatory, ParameterSetName = 'Interaction', Position = 0)]
 		$Session,
 
         [Parameter(Mandatory, ParameterSetName = 'Expression')]
         [string]$Expression,
+
+        [Parameter(Mandatory, ParameterSetName = 'Interaction')]
+        [string]$Interaction,
 
         [Parameter(Mandatory, ParameterSetName = 'Path')]
         [string]$Path,
@@ -56,23 +63,33 @@ Function Invoke-FsiSession {
         [Parameter(Mandatory, ParameterSetName = 'LiteralPath')]
         [string]$LiteralPath,
 
-        [Parameter(Mandatory, ParameterSetName = 'Interaction')]
-        [string]$Interaction
+		[Parameter(ParameterSetName = 'Expression')]
+		[Parameter(ParameterSetName = 'Interaction')]
+		[Parameter(ParameterSetName = 'Path')]
+		[Parameter(ParameterSetName = 'LiteralPath')]
+		[hashtable]$Values
     )
 
+	if ($PSBoundParameters.ContainsKey('Values')) {
+		foreach ($key in $Values.Keys) {
+			$session.AddBoundValue($key, $Values[$key]);
+		}
+	}
+
     $result = switch ($PSCmdlet.ParameterSetName) {
-        'Expression' { 
+        'Expression' {
 			$session.EvalExpressionNonThrowing($Expression);
 		}
-        'Path' { 
+        'Interaction' {
+			#
+			$session.EvalInteractionNonThrowing($Interaction, $null);
+		}
+        'Path' {
 			$resolvedPath = (Resolve-Path $Path).Path;
 			$session.EvalScriptNonThrowing($resolvedPath);
 		}
-        'LiteralPath' { 
+        'LiteralPath' {
 			$session.EvalScriptNonThrowing($LiteralPath);
-		}
-        'Interaction' { 
-			$session.EvalInteractionNonThrowing($Interaction, $null);
 		}
     }
 	if ($result.Item1.IsChoice2Of2) {
@@ -84,6 +101,7 @@ Function Invoke-FsiSession {
 }
 
 Function Remove-FsiSession {
+    [SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
 	param(
         [Parameter(Mandatory)]
 		$Session
